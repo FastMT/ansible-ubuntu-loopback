@@ -1,0 +1,39 @@
+#####################################################################################
+# Additional Loopback IP
+#####################################################################################
+
+- debug:
+    var: loopback_ip_addresses
+
+- name: "Deploy /etc/netplan/loopback.yaml config if loopback is defined"
+  copy: 
+    content: |
+      network:
+        version: 2
+        renderer: networkd
+        
+        ethernets:
+          lo:
+            match:
+              name: lo
+            addresses: [ {{ (['127.0.0.1/8'] + loopback_ip_addresses ) | join (',') }} ]
+    dest: /etc/netplan/loopback.yaml
+  become: yes
+  when: loopback_ip_addresses | length > 0
+  register: loopback_added
+
+- name: "Remove /etc/netplan/loopback.yaml config if loopback is NOT defined"
+  file:
+    state: absent
+    path: /etc/netplan/loopback.yaml
+  become: yes
+  when: loopback_ip_addresses | length == 0
+  register: loopback_removed
+
+- name: "Apply netplan if required"
+  command: /usr/sbin/netplan apply
+  become: yes
+  when: >-
+    loopback_added.changed or
+    loopback_removed.changed
+  check_mode: no
